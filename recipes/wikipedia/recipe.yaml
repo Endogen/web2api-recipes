@@ -1,0 +1,42 @@
+name: "Wikipedia"
+slug: "wikipedia"
+base_url: "https://en.wikipedia.org"
+description: "Search Wikipedia and extract article content, summaries, and metadata"
+endpoints:
+  search:
+    description: "Search articles (q=query, count=N, page=N)"
+    requires_query: true
+    url: "https://en.wikipedia.org/w/index.php?search={query}&ns0=1"
+    items:
+      container: ".mw-search-result"
+      fields:
+        title:
+          selector: ".mw-search-result-heading a"
+          attribute: "text"
+        url:
+          selector: ".mw-search-result-heading a"
+          attribute: "href"
+          transform: "absolute_url"
+        snippet:
+          selector: ".searchresult"
+          attribute: "text"
+          optional: true
+    pagination:
+      type: "page_param"
+      param: "offset"
+      start: 0
+
+  article:
+    description: "Get full article content (q=title or URL slug)"
+    requires_query: true
+    url: "https://en.wikipedia.org/wiki/{query}"
+    items:
+      container: "#mw-content-text"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1

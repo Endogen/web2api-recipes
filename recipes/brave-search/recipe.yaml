@@ -1,0 +1,26 @@
+name: "Brave Search"
+slug: "brave-search"
+base_url: "https://search.brave.com"
+description: "Web search via Brave Search — extracts organic results, FAQs, and related queries"
+endpoints:
+  search:
+    description: "Web search (q=query, count=N, page=N)"
+    requires_query: true
+    url: "https://search.brave.com/search?q={query}"
+    items:
+      container: "#results .snippet"
+      fields:
+        title:
+          selector: ".snippet-title"
+          attribute: "text"
+        url:
+          selector: "a"
+          attribute: "href"
+        snippet:
+          selector: ".snippet-description"
+          attribute: "text"
+          optional: true
+    pagination:
+      type: "page_param"
+      param: "offset"
+      start: 0
