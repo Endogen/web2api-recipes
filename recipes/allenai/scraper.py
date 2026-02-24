@@ -1,9 +1,22 @@
-"""Allen AI Playground scraper — chat with OLMo, Tülu, and Molmo models."""
+"""Allen AI Playground scraper — chat with OLMo, Tülu, and Molmo models.
+
+All API calls use Python's urllib (no browser needed). Supports generic
+tool calling: pass `tools_url` pointing to any MCP HTTP bridge
+(GET /tools, POST /tools/{name}) and the model will use those tools.
+
+Example:
+    /allenai/chat?q=Create+a+Xian+wallet&tools_url=http://localhost:8100
+"""
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
+import subprocess
+import uuid
 from typing import Any
+from urllib.request import Request, urlopen
 
 from playwright.async_api import Page
 
@@ -12,7 +25,8 @@ from web2api.scraper import BaseScraper, ScrapeResult
 logger = logging.getLogger(__name__)
 
 API_BASE = "https://olmo-api.allen.ai"
-PLAYGROUND_URL = "https://playground.allenai.org"
+MAX_TOOL_ROUNDS = 5
+MAX_TOOLS = 5  # Allen AI's streaming breaks with too many tool definitions
 
 # Endpoint name → model ID mapping
 _MODEL_MAP: dict[str, str] = {
@@ -27,82 +41,156 @@ _MODEL_MAP: dict[str, str] = {
 
 _SUPPORTED = set(_MODEL_MAP.keys())
 
-# JavaScript that runs in the browser context to call the Allen AI API.
-# We navigate to the playground first so fetch() has the right origin.
-_CHAT_JS = """
-async ([apiBase, modelId, prompt]) => {
-    const anonId = crypto.randomUUID();
-    const boundary = '----FormBoundary' + Math.random().toString(36).slice(2);
-    const parts = [
-        `--${boundary}\\r\\nContent-Disposition: form-data; name="content"\\r\\n\\r\\n${prompt}\\r\\n`,
-        `--${boundary}\\r\\nContent-Disposition: form-data; name="model"\\r\\n\\r\\n${modelId}\\r\\n`,
-        `--${boundary}\\r\\nContent-Disposition: form-data; name="host"\\r\\n\\r\\nai2_model_hub\\r\\n`,
-        `--${boundary}--\\r\\n`
-    ].join('');
 
-    const resp = await fetch(apiBase + '/v4/threads/', {
-        method: 'POST',
-        headers: {
-            'X-Anonymous-User-ID': anonId,
-            'Content-Type': 'multipart/form-data; boundary=' + boundary,
-        },
-        body: parts,
-    });
+# ── HTTP helpers ────────────────────────────────────────────────────
 
-    if (!resp.ok) {
-        const text = await resp.text();
-        return { error: `HTTP ${resp.status}: ${text.slice(0, 500)}` };
+def _http_get_json(url: str) -> Any:
+    """Synchronous GET returning parsed JSON."""
+    req = Request(url, headers={"Accept": "application/json"})
+    with urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read())
+
+
+def _http_post_json(url: str, body: dict) -> Any:
+    """Synchronous POST with JSON body returning parsed JSON."""
+    data = json.dumps(body).encode()
+    req = Request(url, data=data, headers={
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    })
+    with urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read())
+
+
+def _chat_api(
+    anon_id: str,
+    model_id: str,
+    content: str,
+    parent_id: str | None = None,
+    role: str | None = None,
+    tool_call_id: str | None = None,
+    tool_defs_json: str | None = None,
+    enable_tool_calling: bool = False,
+) -> dict[str, Any]:
+    """Send a message to the Allen AI chat API and parse the streamed response."""
+    fields: dict[str, str | None] = {
+        "content": content,
+        "model": model_id,
+        "host": "ai2_model_hub",
+        "parent": parent_id,
+        "role": role,
+        "toolCallId": tool_call_id,
+        "toolDefinitions": tool_defs_json,
+        "enableToolCalling": "true" if enable_tool_calling else None,
     }
 
-    const text = await resp.text();
-    const lines = text.trim().split('\\n').filter(l => l.trim());
-    let content = '';
-    let thinking = null;
-    let threadId = null;
-    let messageId = null;
-    let finishReason = null;
-    let modelUsed = modelId;
+    # Use curl with -F flags for the streaming NDJSON response.
+    # --http1.1 avoids HTTP/2 stream errors with Allen AI's server.
+    cmd = [
+        "curl", "-s", "--http1.1", "--max-time", "90",
+        "-X", "POST", f"{API_BASE}/v4/threads/",
+        "-H", f"X-Anonymous-User-ID: {anon_id}",
+    ]
+    for name, value in fields.items():
+        if value is not None:
+            cmd.extend(["-F", f"{name}={value}"])
+    proc = subprocess.run(cmd, capture_output=True, timeout=95)
+    raw = proc.stdout.decode("utf-8")
 
-    for (const line of lines) {
-        try {
-            const evt = JSON.parse(line);
-            if (evt.type === 'start') {
-                threadId = evt.message;
-            }
-            if (evt.type === 'modelResponse' && evt.content !== undefined) {
-                content += evt.content;
-            }
-            if (evt.type === 'thinkingResponse' && evt.content !== undefined) {
-                thinking = (thinking || '') + evt.content;
-            }
-            if (evt.messages) {
-                const assistant = evt.messages.find(m => m.role === 'assistant');
-                if (assistant && assistant.final) {
-                    content = assistant.content || content;
-                    thinking = assistant.thinking || thinking;
-                    finishReason = assistant.finishReason;
-                    messageId = assistant.id;
-                    if (assistant.modelId) modelUsed = assistant.modelId;
-                }
-            }
-        } catch {}
+    # Parse NDJSON stream (robust: handles newlines inside JSON values)
+    response_content = ""
+    thinking = None
+    thread_id = None
+    message_id = None
+    finish_reason = None
+    tool_calls: list[dict] = []
+    model_used = model_id
+
+    events: list[dict] = []
+    buf = ""
+    for line in raw.split("\n"):
+        buf += line
+        try:
+            events.append(json.loads(buf))
+            buf = ""
+        except json.JSONDecodeError:
+            buf += "\n"
+
+    for evt in events:
+
+        if evt.get("type") == "start":
+            thread_id = evt.get("message")
+
+        if evt.get("type") == "modelResponse" and "content" in evt:
+            response_content += evt["content"]
+
+        if evt.get("type") == "thinkingResponse" and "content" in evt:
+            thinking = (thinking or "") + evt["content"]
+
+        if "messages" in evt:
+            for msg in evt["messages"]:
+                if msg.get("role") == "assistant" and msg.get("final"):
+                    response_content = msg.get("content") or response_content
+                    thinking = msg.get("thinking") or thinking
+                    finish_reason = msg.get("finishReason")
+                    message_id = msg.get("id")
+                    if msg.get("modelId"):
+                        model_used = msg["modelId"]
+                    if msg.get("toolCalls"):
+                        tool_calls = msg["toolCalls"]
+
+    return {
+        "content": response_content,
+        "thinking": thinking,
+        "thread_id": thread_id,
+        "message_id": message_id,
+        "finish_reason": finish_reason,
+        "model": model_used,
+        "tool_calls": tool_calls,
     }
 
-    return { content, thinking, threadId, messageId, finishReason, model: modelUsed };
-}
-"""
 
-_MODELS_JS = """
-async (apiBase) => {
-    const resp = await fetch(apiBase + '/v4/models/');
-    if (!resp.ok) return { error: `HTTP ${resp.status}` };
-    return await resp.json();
-}
-"""
+def _clean_schema(schema: dict) -> dict:
+    """Strip fields from JSON Schema that Allen AI's API rejects."""
+    cleaned = {}
+    for key, value in schema.items():
+        if key == "default":
+            continue
+        if key == "properties" and isinstance(value, dict):
+            cleaned[key] = {
+                prop_name: _clean_schema(prop_schema)
+                for prop_name, prop_schema in value.items()
+            }
+        elif isinstance(value, dict):
+            cleaned[key] = _clean_schema(value)
+        else:
+            cleaned[key] = value
+    return cleaned
 
+
+# ── Tool bridge helpers ─────────────────────────────────────────────
+
+async def _fetch_tools(tools_url: str) -> list[dict]:
+    """Fetch tool definitions from an MCP HTTP bridge."""
+    return await asyncio.to_thread(_http_get_json, f"{tools_url}/tools")
+
+
+async def _call_tool(tools_url: str, tool_name: str, args: dict) -> str:
+    """Call a tool and return the result as a string."""
+    try:
+        result = await asyncio.to_thread(
+            _http_post_json, f"{tools_url}/tools/{tool_name}", args
+        )
+        payload = result.get("result", result)
+        return json.dumps(payload) if not isinstance(payload, str) else payload
+    except Exception as ex:
+        return json.dumps({"error": str(ex)})
+
+
+# ── Scraper ─────────────────────────────────────────────────────────
 
 class Scraper(BaseScraper):
-    """Query Allen AI models via their public API."""
+    """Query Allen AI models with optional tool calling."""
 
     def supports(self, endpoint: str) -> bool:
         return endpoint in _SUPPORTED
@@ -110,11 +198,8 @@ class Scraper(BaseScraper):
     async def scrape(
         self, endpoint: str, page: Page, params: dict[str, Any]
     ) -> ScrapeResult:
-        # Navigate to the playground so fetch() has the correct origin
-        await page.goto(PLAYGROUND_URL, wait_until="domcontentloaded")
-
         if endpoint == "models":
-            return await self._list_models(page)
+            return await self._list_models()
 
         model_id = _MODEL_MAP[endpoint]
         query = (params.get("query") or "").strip()
@@ -123,47 +208,124 @@ class Scraper(BaseScraper):
                 items=[{"prompt": "", "response": "", "model": model_id}]
             )
 
-        return await self._chat(page, model_id, query)
+        tools_url = (params.get("tools_url") or "").strip().rstrip("/")
+        return await self._chat(model_id, query, tools_url)
 
     async def _chat(
-        self, page: Page, model_id: str, prompt: str
+        self, model_id: str, prompt: str, tools_url: str
     ) -> ScrapeResult:
-        """Send a prompt and collect the streamed response."""
-        result = await page.evaluate(_CHAT_JS, [API_BASE, model_id, prompt])
+        """Send a prompt, optionally with tool calling loop."""
+        anon_id = str(uuid.uuid4())
 
-        if isinstance(result, dict) and "error" in result:
-            raise RuntimeError(result["error"])
+        # Discover tools from MCP HTTP bridge
+        tool_defs_json = None
+        if tools_url:
+            tools = await _fetch_tools(tools_url)
+            allen_tools = [
+                {
+                    "name": t["name"],
+                    "description": t["description"],
+                    "parameters": _clean_schema(t["parameters"]),
+                }
+                for t in tools[:MAX_TOOLS]
+            ]
+            if len(tools) > MAX_TOOLS:
+                logger.warning(
+                    "Limiting tools from %d to %d (Allen AI streaming limit)",
+                    len(tools), MAX_TOOLS,
+                )
+            tool_defs_json = json.dumps(allen_tools)
 
+        # Initial request
+        result = await asyncio.to_thread(
+            _chat_api,
+            anon_id, model_id, prompt,
+            None, None, None,
+            tool_defs_json,
+            bool(tools_url),
+        )
+
+        # Tool calling loop
+        tool_log: list[dict[str, Any]] = []
+        rounds = 0
+
+        while (
+            result.get("tool_calls")
+            and tools_url
+            and rounds < MAX_TOOL_ROUNDS
+        ):
+            rounds += 1
+            parent_id = result["message_id"]
+
+            for tool_call in result["tool_calls"]:
+                tool_name = tool_call["toolName"]
+                tool_call_id = tool_call["toolCallId"]
+                args = tool_call.get("args", {})
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+                logger.info(
+                    "Tool call round %d: %s(%s)",
+                    rounds, tool_name, json.dumps(args)[:200],
+                )
+
+                # Call tool via Python HTTP
+                tool_result = await _call_tool(tools_url, tool_name, args)
+
+                tool_log.append({
+                    "round": rounds,
+                    "tool": tool_name,
+                    "args": args,
+                    "result": (
+                        tool_result[:2000]
+                        if isinstance(tool_result, str)
+                        else tool_result
+                    ),
+                })
+
+                # Send tool result back to model
+                result = await asyncio.to_thread(
+                    _chat_api,
+                    anon_id, model_id,
+                    tool_result,
+                    parent_id,
+                    "tool_call_result",
+                    tool_call_id,
+                    tool_defs_json,
+                    True,
+                )
+
+                if result.get("message_id"):
+                    parent_id = result["message_id"]
+
+        # Build response
         item: dict[str, Any] = {
             "prompt": prompt,
             "response": result.get("content", ""),
             "model": result.get("model", model_id),
         }
 
-        thinking = result.get("thinking")
-        if thinking:
-            item["thinking"] = thinking
-
-        thread_id = result.get("threadId")
-        if thread_id:
-            item["thread_id"] = thread_id
-
-        message_id = result.get("messageId")
-        if message_id:
-            item["message_id"] = message_id
-
-        finish_reason = result.get("finishReason")
-        if finish_reason:
-            item["finish_reason"] = finish_reason
+        if result.get("thinking"):
+            item["thinking"] = result["thinking"]
+        if result.get("thread_id"):
+            item["thread_id"] = result["thread_id"]
+        if result.get("message_id"):
+            item["message_id"] = result["message_id"]
+        if result.get("finish_reason"):
+            item["finish_reason"] = result["finish_reason"]
+        if tool_log:
+            item["tool_calls"] = json.dumps(tool_log)
 
         return ScrapeResult(items=[item])
 
-    async def _list_models(self, page: Page) -> ScrapeResult:
+    async def _list_models(self) -> ScrapeResult:
         """Fetch available models from the API."""
-        result = await page.evaluate(_MODELS_JS, API_BASE)
-
-        if isinstance(result, dict) and "error" in result:
-            raise RuntimeError(result["error"])
+        result = await asyncio.to_thread(
+            _http_get_json, f"{API_BASE}/v4/models/"
+        )
 
         items = []
         for model in result:
