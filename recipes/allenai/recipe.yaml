@@ -1,0 +1,103 @@
+name: "Allen AI Playground"
+slug: "allenai"
+base_url: "https://playground.allenai.org"
+description: "Chat with Allen AI's open-source models (OLMo, Tülu, Molmo)"
+endpoints:
+  chat:
+    description: "Send a prompt to the default model (OLMo 3.1 32B Instruct)"
+    requires_query: true
+    url: "https://playground.allenai.org"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1
+  olmo-32b:
+    description: "Send a prompt to OLMo 3.1 32B Instruct"
+    requires_query: true
+    url: "https://playground.allenai.org"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1
+  olmo-32b-think:
+    description: "Send a prompt to OLMo 3.1 32B Think (reasoning model)"
+    requires_query: true
+    url: "https://playground.allenai.org"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1
+  olmo-7b:
+    description: "Send a prompt to OLMo 3 7B Instruct"
+    requires_query: true
+    url: "https://playground.allenai.org"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1
+  tulu-8b:
+    description: "Send a prompt to Tülu 3 8B"
+    requires_query: true
+    url: "https://playground.allenai.org"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1
+  tulu-70b:
+    description: "Send a prompt to Tülu 3 70B"
+    requires_query: true
+    url: "https://playground.allenai.org"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1
+  models:
+    description: "List available models"
+    requires_query: false
+    url: "https://playground.allenai.org"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1

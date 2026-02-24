@@ -23,3 +23,8 @@ recipes:
     description: "Wikipedia search and read recipe."
     source: "./recipes/wikipedia"
     trusted: true
+
+  allenai:
+    description: "Allen AI Playground recipe (OLMo, Tülu, Molmo models)."
+    source: "./recipes/allenai"
+    trusted: true
