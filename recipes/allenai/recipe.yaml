@@ -7,6 +7,11 @@ endpoints:
     description: "Send a prompt to the default model (OLMo 3.1 32B Instruct)"
     requires_query: true
     url: "https://playground.allenai.org"
+    params:
+      tools_url:
+        description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
+        required: false
+        example: "http://localhost:8100"
     items:
       container: "body"
       fields:
@@ -21,6 +26,11 @@ endpoints:
     description: "Send a prompt to OLMo 3.1 32B Instruct"
     requires_query: true
     url: "https://playground.allenai.org"
+    params:
+      tools_url:
+        description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
+        required: false
+        example: "http://localhost:8100"
     items:
       container: "body"
       fields:
@@ -35,6 +45,11 @@ endpoints:
     description: "Send a prompt to OLMo 3.1 32B Think (reasoning model)"
     requires_query: true
     url: "https://playground.allenai.org"
+    params:
+      tools_url:
+        description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
+        required: false
+        example: "http://localhost:8100"
     items:
       container: "body"
       fields:
@@ -49,6 +64,11 @@ endpoints:
     description: "Send a prompt to OLMo 3 7B Instruct"
     requires_query: true
     url: "https://playground.allenai.org"
+    params:
+      tools_url:
+        description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
+        required: false
+        example: "http://localhost:8100"
     items:
       container: "body"
       fields:
@@ -63,6 +83,11 @@ endpoints:
     description: "Send a prompt to Tülu 3 8B"
     requires_query: true
     url: "https://playground.allenai.org"
+    params:
+      tools_url:
+        description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
+        required: false
+        example: "http://localhost:8100"
     items:
       container: "body"
       fields:
@@ -77,6 +102,11 @@ endpoints:
     description: "Send a prompt to Tülu 3 70B"
     requires_query: true
     url: "https://playground.allenai.org"
+    params:
+      tools_url:
+        description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
+        required: false
+        example: "http://localhost:8100"
     items:
       container: "body"
       fields:
