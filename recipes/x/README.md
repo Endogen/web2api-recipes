@@ -1,79 +1,43 @@
-# X (Twitter) Recipe
+# X (Twitter)
 
-This recipe adds X (Twitter) endpoints to Web2API.
+Retrieve recent posts from an [X/Twitter](https://x.com) user profile.
 
-## Required Setup
+## Endpoints
 
-This recipe needs authenticated X session values.
+| Endpoint | Description |
+|---|---|
+| `posts` | Get recent posts by username |
 
-| Environment Variable | Required | What it is                        |
-| -------------------- | -------- | --------------------------------- |
-| `BIRD_AUTH_TOKEN`    | Yes      | Your X session `auth_token` value |
-| `BIRD_CT0`           | Yes      | Your X session `ct0` value        |
+## Usage
 
-Without these values, the recipe is installed but not ready.
-
-## Install
-
-```bash
-web2api recipes catalog add x --yes
-web2api recipes install x --yes
+```
+GET /x/posts?q=elonmusk
 ```
 
-## Configure Credentials
+### Response
 
-### Docker Compose (recommended)
+Returns a list of posts, each with:
 
-Set the variables on the web2api service:
+- `text` — post content
 
-```yaml
-services:
-  web2api:
-    environment:
-      BIRD_AUTH_TOKEN: "<your_auth_token>"
-      BIRD_CT0: "<your_ct0>"
-```
+## Requirements
 
-Then recreate/restart the service:
+- **Authentication required** — X requires login cookies for profile scraping
+- Set the following environment variables:
 
-```bash
-docker compose up -d --force-recreate web2api
-```
- 
-### Local (non-Docker)
+| Variable | Description |
+|---|---|
+| `BIRD_AUTH_TOKEN` | X auth token cookie |
+| `BIRD_CT0` | X CSRF token cookie |
 
-```bash
-export BIRD_AUTH_TOKEN="<your_auth_token>"
-export BIRD_CT0="<your_ct0>"
-```
+### Getting Auth Tokens
 
-Start Web2API in the same shell session.
+1. Log in to x.com in your browser
+2. Open DevTools → Application → Cookies
+3. Copy `auth_token` → set as `BIRD_AUTH_TOKEN`
+4. Copy `ct0` → set as `BIRD_CT0`
 
-## Verify
+## Notes
 
-```bash
-web2api recipes doctor x
-```
-
-Expected result:
-
-- ready=True
-- no missing env entries
-
-If running in Docker:
-
-```bash
-docker compose exec web2api web2api recipes doctor x
-```
-
-## Troubleshooting
-
-- If you see missing env vars, the variables are not available in the runtime process/container.
-- If env vars are present but requests fail, your X session values may be expired or invalid.
-- After changing credentials in Docker, restart/recreate the container.
-
-## Security Notes
-
-- Treat BIRD_AUTH_TOKEN and BIRD_CT0 as secrets.
-- Do not commit them to git.
-- Rotate them if exposed.
+- Tokens may expire and need periodic refresh
+- Rate limits apply based on X's policies
