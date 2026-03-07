@@ -28,3 +28,8 @@ recipes:
     description: "Allen AI Playground recipe (OLMo, Tülu, Molmo models)."
     source: "./recipes/allenai"
     trusted: true
+
+  web-reader:
+    description: "Fetch and extract readable text from any URL."
+    source: "./recipes/web-reader"
+    trusted: true

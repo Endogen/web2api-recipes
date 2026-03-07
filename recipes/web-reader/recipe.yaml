@@ -1,0 +1,20 @@
+name: "Web Reader"
+slug: "web-reader"
+base_url: "https://example.com"
+description: "Fetch and extract readable text content from any URL"
+endpoints:
+  read:
+    description: "Extract readable text from a webpage (q=url)"
+    tool_name: "read_webpage"
+    requires_query: true
+    url: "https://example.com"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1
