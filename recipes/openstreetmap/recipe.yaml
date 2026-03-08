@@ -1,0 +1,65 @@
+name: "OpenStreetMap"
+slug: "openstreetmap"
+base_url: "https://www.openstreetmap.org"
+description: "Geocoding, reverse geocoding, and routing via OpenStreetMap (Nominatim + OSRM)"
+endpoints:
+  geocode:
+    description: "Convert an address or place name to coordinates (q=address)"
+    tool_name: "geocode"
+    requires_query: true
+    url: "https://nominatim.openstreetmap.org"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1
+  reverse:
+    description: "Convert coordinates to an address (q=lat,lon)"
+    tool_name: "reverse_geocode"
+    requires_query: true
+    url: "https://nominatim.openstreetmap.org"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1
+  route:
+    description: "Calculate a route between two points (q=lat1,lon1;lat2,lon2 — optionally add more waypoints with semicolons)"
+    tool_name: "calculate_route"
+    requires_query: true
+    url: "https://router.project-osrm.org"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1
+  search:
+    description: "Search for places and points of interest near a location (q=query, lat=latitude, lon=longitude, radius=meters)"
+    tool_name: "search_places"
+    requires_query: true
+    url: "https://nominatim.openstreetmap.org"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1

@@ -33,3 +33,8 @@ recipes:
     description: "Fetch and extract readable text from any URL."
     source: "./recipes/web-reader"
     trusted: true
+
+  openstreetmap:
+    description: "Geocoding, reverse geocoding, routing, and place search via OpenStreetMap."
+    source: "./recipes/openstreetmap"
+    trusted: true
