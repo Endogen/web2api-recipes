@@ -37,6 +37,8 @@ _MODEL_MAP: dict[str, str] = {
     "tulu-8b": "cs-Llama-3.1-Tulu-3.1-8B",
     "tulu-70b": "cs-Llama-3.1-Tulu-3-70B",
     "models": None,
+    "molmo2": "molmo2-8b",
+    "molmo2-track": "molmo2-8b-track",
 }
 
 _SUPPORTED = set(_MODEL_MAP.keys())
@@ -71,6 +73,7 @@ def _chat_api(
     tool_call_id: str | None = None,
     tool_defs_json: str | None = None,
     enable_tool_calling: bool = False,
+    file_paths: list[str] | None = None,
 ) -> dict[str, Any]:
     """Send a message to the Allen AI chat API and parse the streamed response."""
     fields: dict[str, str | None] = {
@@ -94,6 +97,13 @@ def _chat_api(
     for name, value in fields.items():
         if value is not None:
             cmd.extend(["-F", f"{name}={value}"])
+    # Attach files for vision models (Molmo 2)
+    if file_paths:
+        import mimetypes
+        for fpath in file_paths:
+            mime = mimetypes.guess_type(fpath)[0] or "application/octet-stream"
+            fname = fpath.rsplit("/", 1)[-1]
+            cmd.extend(["-F", f"files=@{fpath};type={mime};filename={fname}"])
     proc = subprocess.run(cmd, capture_output=True, timeout=95)
     raw = proc.stdout.decode("utf-8")
 
@@ -208,11 +218,14 @@ class Scraper(BaseScraper):
                 items=[{"prompt": "", "response": "", "model": model_id}]
             )
 
+        
+        file_paths = params.get("file_paths") or []
         tools_url = (params.get("tools_url") or "").strip().rstrip("/")
-        return await self._chat(model_id, query, tools_url)
+        return await self._chat(model_id, query, tools_url, file_paths=file_paths)
 
     async def _chat(
-        self, model_id: str, prompt: str, tools_url: str
+        self, model_id: str, prompt: str, tools_url: str,
+        file_paths: list[str] | None = None,
     ) -> ScrapeResult:
         """Send a prompt, optionally with tool calling loop."""
         anon_id = str(uuid.uuid4())
@@ -243,6 +256,7 @@ class Scraper(BaseScraper):
             None, None, None,
             tool_defs_json,
             bool(tools_url),
+            file_paths=file_paths,
         )
 
         # Tool calling loop
