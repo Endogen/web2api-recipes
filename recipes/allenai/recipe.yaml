@@ -131,3 +131,33 @@ endpoints:
       type: "page_param"
       param: "p"
       start: 1
+  molmo2:
+    description: "Molmo 2 8B vision model — analyze images and video"
+    tool_name: "molmo2_vision"
+    requires_query: true
+    url: "https://playground.allenai.org"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1
+  molmo2-track:
+    description: "Molmo 2 8B Tracking — 8fps video tracking"
+    tool_name: "molmo2_tracking"
+    requires_query: true
+    url: "https://playground.allenai.org"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1
