@@ -38,3 +38,7 @@ recipes:
     description: "Geocoding, reverse geocoding, routing, and place search via OpenStreetMap."
     source: "./recipes/openstreetmap"
     trusted: true
+  nvidia:
+    description: "NVIDIA NIM recipe using the direct integrate.api.nvidia.com API."
+    source: "./recipes/nvidia"
+    trusted: true

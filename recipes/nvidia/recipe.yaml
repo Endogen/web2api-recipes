@@ -1,0 +1,63 @@
+name: "NVIDIA NIM"
+slug: "nvidia"
+base_url: "https://build.nvidia.com/models"
+description: "Query NVIDIA-hosted models through the OpenAI-compatible integrate.api.nvidia.com API"
+endpoints:
+  models:
+    description: "List available NVIDIA-hosted model IDs"
+    url: "https://integrate.api.nvidia.com/v1/models"
+    params:
+      owner:
+        description: "Optional owner/vendor filter, e.g. meta or google"
+        required: false
+        example: "meta"
+      prefix:
+        description: "Optional model ID prefix filter"
+        required: false
+        example: "meta/llama"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1
+
+  chat:
+    description: "Send a chat prompt to an NVIDIA-hosted model (requires NVIDIA_API_KEY)"
+    requires_query: true
+    url: "https://integrate.api.nvidia.com/v1/chat/completions"
+    params:
+      model:
+        description: "Model ID from /nvidia/models"
+        required: false
+        example: "meta/llama-3.1-70b-instruct"
+      system:
+        description: "Optional system prompt"
+        required: false
+        example: "You are a concise assistant."
+      temperature:
+        description: "Sampling temperature"
+        required: false
+        example: "0.2"
+      top_p:
+        description: "Top-p nucleus sampling"
+        required: false
+        example: "0.7"
+      max_tokens:
+        description: "Maximum output tokens"
+        required: false
+        example: "512"
+    items:
+      container: "body"
+      fields:
+        text:
+          selector: ""
+          attribute: "text"
+    pagination:
+      type: "page_param"
+      param: "p"
+      start: 1
