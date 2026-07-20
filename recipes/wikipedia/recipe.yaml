@@ -7,6 +7,13 @@ endpoints:
     description: "Search articles (q=query, count=N, page=N)"
     requires_query: true
     url: "https://en.wikipedia.org/w/index.php?search={query}&ns0=1"
+    params:
+      count:
+        description: "Maximum number of search results"
+        type: "integer"
+        minimum: 1
+        maximum: 50
+        example: 20
     items:
       container: ".mw-search-result"
       fields:

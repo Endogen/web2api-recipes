@@ -7,6 +7,13 @@ endpoints:
     description: "Get recent posts by username (q=username, count=N)"
     requires_query: true
     url: "https://x.com/{query}"
+    params:
+      count:
+        description: "Maximum number of posts"
+        type: "integer"
+        minimum: 1
+        maximum: 50
+        example: 10
     items:
       container: "[data-testid='tweet']"
       fields:

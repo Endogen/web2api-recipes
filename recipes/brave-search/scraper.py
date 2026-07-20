@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import re
 from typing import Any
 from urllib.parse import quote
 
 from playwright.async_api import Page
-
 from web2api.scraper import BaseScraper, ScrapeResult
 
 

@@ -41,16 +41,25 @@ endpoints:
         example: "You are a concise assistant."
       temperature:
         description: "Sampling temperature"
+        type: "number"
+        minimum: 0
+        maximum: 2
         required: false
-        example: "0.2"
+        example: 0.2
       top_p:
         description: "Top-p nucleus sampling"
+        type: "number"
+        minimum: 0
+        maximum: 1
         required: false
-        example: "0.7"
+        example: 0.7
       max_tokens:
         description: "Maximum output tokens"
+        type: "integer"
+        minimum: 1
+        maximum: 32768
         required: false
-        example: "512"
+        example: 512
     items:
       container: "body"
       fields:

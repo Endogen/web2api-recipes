@@ -38,6 +38,11 @@ endpoints:
     tool_name: "calculate_route"
     requires_query: true
     url: "https://router.project-osrm.org"
+    params:
+      profile:
+        description: "Routing profile"
+        enum: ["driving", "walking", "cycling"]
+        example: "driving"
     items:
       container: "body"
       fields:
@@ -53,6 +58,23 @@ endpoints:
     tool_name: "search_places"
     requires_query: true
     url: "https://nominatim.openstreetmap.org"
+    params:
+      lat:
+        description: "Center latitude for a bounded nearby search"
+        type: "number"
+        minimum: -90
+        maximum: 90
+      lon:
+        description: "Center longitude for a bounded nearby search"
+        type: "number"
+        minimum: -180
+        maximum: 180
+      radius:
+        description: "Search radius in meters"
+        type: "number"
+        minimum: 1
+        maximum: 50000
+        example: 5000
     items:
       container: "body"
       fields:

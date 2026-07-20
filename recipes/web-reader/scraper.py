@@ -8,7 +8,10 @@ from typing import Any
 from urllib.parse import urlparse
 
 from playwright.async_api import Page
-
+from web2api.network_security import (
+    private_network_access_enabled,
+    validate_public_http_url,
+)
 from web2api.scraper import BaseScraper, ScrapeResult
 
 # Max characters to return (prevents huge pages from overwhelming the model)
@@ -46,6 +49,11 @@ class Scraper(BaseScraper):
         parsed = urlparse(url)
         if not parsed.hostname:
             raise RuntimeError(f"Invalid URL: {url}")
+        await asyncio.to_thread(
+            validate_public_http_url,
+            url,
+            allow_private_network=private_network_access_enabled(),
+        )
 
         # Navigate with anti-detection
         await page.add_init_script(
@@ -117,6 +125,11 @@ class Scraper(BaseScraper):
 
         # Get the final URL (after redirects)
         final_url = page.url
+        await asyncio.to_thread(
+            validate_public_http_url,
+            final_url,
+            allow_private_network=private_network_access_enabled(),
+        )
 
         item: dict[str, Any] = {
             "title": title or final_url,

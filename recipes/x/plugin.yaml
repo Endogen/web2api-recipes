@@ -10,7 +10,7 @@ dependencies:
   apt:
     - nodejs
   npm:
-    - "@steipete/bird"
+    - "@steipete/bird@0.8.0"
 healthcheck:
   command:
     - bird

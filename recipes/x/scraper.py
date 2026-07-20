@@ -8,18 +8,13 @@ import os
 from typing import Any
 
 from playwright.async_api import Page
-
 from web2api.scraper import BaseScraper, ScrapeResult
-
-# Auth tokens read from ~/.bird_auth or environment
-_AUTH_TOKEN = os.environ.get("BIRD_AUTH_TOKEN", "")
-_CT0 = os.environ.get("BIRD_CT0", "")
 
 
 def _load_auth() -> tuple[str, str]:
     """Load bird auth tokens from env or ~/.bird_auth file."""
-    auth_token = _AUTH_TOKEN
-    ct0 = _CT0
+    auth_token = os.environ.get("BIRD_AUTH_TOKEN", "")
+    ct0 = os.environ.get("BIRD_CT0", "")
     if auth_token and ct0:
         return auth_token, ct0
 
@@ -44,10 +39,17 @@ def _load_auth() -> tuple[str, str]:
 class Scraper(BaseScraper):
     """Fetch user tweets via the bird CLI."""
 
+    requires_browser = False
+
     def supports(self, endpoint: str) -> bool:
         return endpoint == "posts"
 
-    async def scrape(self, endpoint: str, page: Page, params: dict[str, Any]) -> ScrapeResult:
+    async def scrape(
+        self,
+        endpoint: str,
+        page: Page | None,
+        params: dict[str, Any],
+    ) -> ScrapeResult:
         username = (params.get("query") or "").strip().lstrip("@")
         if not username:
             raise RuntimeError("Missing username — pass q=<username>")
@@ -69,7 +71,12 @@ class Scraper(BaseScraper):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+        except (TimeoutError, asyncio.CancelledError):
+            proc.kill()
+            await proc.wait()
+            raise
 
         if proc.returncode != 0:
             error_msg = stderr.decode().strip()
