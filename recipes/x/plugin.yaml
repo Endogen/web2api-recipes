@@ -1,6 +1,6 @@
 version: "1.0.0"
 web2api:
-  min: "0.1.0"
+  min: "0.5.0"
 requires_env:
   - BIRD_AUTH_TOKEN
   - BIRD_CT0
@@ -9,6 +9,7 @@ dependencies:
     - bird
   apt:
     - nodejs
+    - npm
   npm:
     - "@steipete/bird@0.8.0"
 healthcheck:
