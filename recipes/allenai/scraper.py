@@ -1,6 +1,6 @@
 """Allen AI Playground scraper — chat with OLMo, Tülu, and Molmo models.
 
-All API calls use Python's urllib (no browser needed). Supports generic
+All API calls use async HTTP (no browser needed). Supports generic
 tool calling: pass `tools_url` pointing to any MCP HTTP bridge
 (GET /tools, POST /tools/{name}) and the model will use those tools.
 
@@ -10,16 +10,15 @@ Example:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-import subprocess
+import mimetypes
 import uuid
 from typing import Any
-from urllib.request import Request, urlopen
 
+import httpx
 from playwright.async_api import Page
-
+from web2api.network_security import validate_httpx_request
 from web2api.scraper import BaseScraper, ScrapeResult
 
 logger = logging.getLogger(__name__)
@@ -46,25 +45,35 @@ _SUPPORTED = set(_MODEL_MAP.keys())
 
 # ── HTTP helpers ────────────────────────────────────────────────────
 
-def _http_get_json(url: str) -> Any:
-    """Synchronous GET returning parsed JSON."""
-    req = Request(url, headers={"Accept": "application/json"})
-    with urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
+async def _http_get_json(url: str) -> Any:
+    """GET JSON with redirect and private-network validation."""
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        timeout=30,
+        event_hooks={"request": [validate_httpx_request]},
+    ) as client:
+        response = await client.get(url, headers={"Accept": "application/json"})
+        response.raise_for_status()
+        return response.json()
 
 
-def _http_post_json(url: str, body: dict) -> Any:
-    """Synchronous POST with JSON body returning parsed JSON."""
-    data = json.dumps(body).encode()
-    req = Request(url, data=data, headers={
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    })
-    with urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
+async def _http_post_json(url: str, body: dict) -> Any:
+    """POST JSON with redirect and private-network validation."""
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        timeout=30,
+        event_hooks={"request": [validate_httpx_request]},
+    ) as client:
+        response = await client.post(
+            url,
+            json=body,
+            headers={"Accept": "application/json"},
+        )
+        response.raise_for_status()
+        return response.json()
 
 
-def _chat_api(
+async def _chat_api(
     anon_id: str,
     model_id: str,
     content: str,
@@ -87,25 +96,32 @@ def _chat_api(
         "enableToolCalling": "true" if enable_tool_calling else None,
     }
 
-    # Use curl with -F flags for the streaming NDJSON response.
-    # --http1.1 avoids HTTP/2 stream errors with Allen AI's server.
-    cmd = [
-        "curl", "-s", "--http1.1", "--max-time", "90",
-        "-X", "POST", f"{API_BASE}/v4/threads/",
-        "-H", f"X-Anonymous-User-ID: {anon_id}",
-    ]
-    for name, value in fields.items():
-        if value is not None:
-            cmd.extend(["-F", f"{name}={value}"])
-    # Attach files for vision models (Molmo 2)
-    if file_paths:
-        import mimetypes
-        for fpath in file_paths:
-            mime = mimetypes.guess_type(fpath)[0] or "application/octet-stream"
-            fname = fpath.rsplit("/", 1)[-1]
-            cmd.extend(["-F", f"files=@{fpath};type={mime};filename={fname}"])
-    proc = subprocess.run(cmd, capture_output=True, timeout=95)
-    raw = proc.stdout.decode("utf-8")
+    upload_handles = []
+    files: list[tuple[str, tuple[str, Any, str]]] = []
+    try:
+        for file_path in file_paths or []:
+            handle = open(file_path, "rb")  # noqa: SIM115 - closed together below
+            upload_handles.append(handle)
+            mime = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
+            filename = file_path.rsplit("/", 1)[-1]
+            files.append(("files", (filename, handle, mime)))
+
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=95,
+            event_hooks={"request": [validate_httpx_request]},
+        ) as client:
+            response = await client.post(
+                f"{API_BASE}/v4/threads/",
+                data={name: value for name, value in fields.items() if value is not None},
+                files=files or None,
+                headers={"X-Anonymous-User-ID": anon_id},
+            )
+            response.raise_for_status()
+            raw = response.text
+    finally:
+        for handle in upload_handles:
+            handle.close()
 
     # Parse NDJSON stream (robust: handles newlines inside JSON values)
     response_content = ""
@@ -182,15 +198,13 @@ def _clean_schema(schema: dict) -> dict:
 
 async def _fetch_tools(tools_url: str) -> list[dict]:
     """Fetch tool definitions from an MCP HTTP bridge."""
-    return await asyncio.to_thread(_http_get_json, f"{tools_url}/tools")
+    return await _http_get_json(f"{tools_url}/tools")
 
 
 async def _call_tool(tools_url: str, tool_name: str, args: dict) -> str:
     """Call a tool and return the result as a string."""
     try:
-        result = await asyncio.to_thread(
-            _http_post_json, f"{tools_url}/tools/{tool_name}", args
-        )
+        result = await _http_post_json(f"{tools_url}/tools/{tool_name}", args)
         payload = result.get("result", result)
         return json.dumps(payload) if not isinstance(payload, str) else payload
     except Exception as ex:
@@ -202,11 +216,13 @@ async def _call_tool(tools_url: str, tool_name: str, args: dict) -> str:
 class Scraper(BaseScraper):
     """Query Allen AI models with optional tool calling."""
 
+    requires_browser = False
+
     def supports(self, endpoint: str) -> bool:
         return endpoint in _SUPPORTED
 
     async def scrape(
-        self, endpoint: str, page: Page, params: dict[str, Any]
+        self, endpoint: str, page: Page | None, params: dict[str, Any]
     ) -> ScrapeResult:
         if endpoint == "models":
             return await self._list_models()
@@ -217,8 +233,6 @@ class Scraper(BaseScraper):
             return ScrapeResult(
                 items=[{"prompt": "", "response": "", "model": model_id}]
             )
-
-        
         file_paths = params.get("file_paths") or []
         tools_url = (params.get("tools_url") or "").strip().rstrip("/")
         return await self._chat(model_id, query, tools_url, file_paths=file_paths)
@@ -250,8 +264,7 @@ class Scraper(BaseScraper):
             tool_defs_json = json.dumps(allen_tools)
 
         # Initial request
-        result = await asyncio.to_thread(
-            _chat_api,
+        result = await _chat_api(
             anon_id, model_id, prompt,
             None, None, None,
             tool_defs_json,
@@ -301,8 +314,7 @@ class Scraper(BaseScraper):
                 })
 
                 # Send tool result back to model
-                result = await asyncio.to_thread(
-                    _chat_api,
+                result = await _chat_api(
                     anon_id, model_id,
                     tool_result,
                     parent_id,
@@ -337,9 +349,7 @@ class Scraper(BaseScraper):
 
     async def _list_models(self) -> ScrapeResult:
         """Fetch available models from the API."""
-        result = await asyncio.to_thread(
-            _http_get_json, f"{API_BASE}/v4/models/"
-        )
+        result = await _http_get_json(f"{API_BASE}/v4/models/")
 
         items = []
         for model in result:

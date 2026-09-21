@@ -6,7 +6,6 @@ import asyncio
 from typing import Any
 
 from playwright.async_api import Page
-
 from web2api.scraper import BaseScraper, ScrapeResult
 
 # Map endpoint names to (source_lang, target_lang) pairs

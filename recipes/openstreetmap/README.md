@@ -54,11 +54,21 @@ GET /openstreetmap/search?q=pharmacy&lat=52.52&lon=13.405&radius=2000
 
 ## Requirements
 
-- No API key needed
-- No environment variables required
-- Uses Nominatim and OSRM public APIs (please respect usage policies)
+Configure provider endpoints before enabling the recipe:
+
+```bash
+export NOMINATIM_BASE_URL="https://nominatim.your-provider.example"
+export OSRM_BASE_URL="https://osrm.your-provider.example"
+export OPENSTREETMAP_USER_AGENT="your-app/1.0 (ops@example.com)"
+```
+
+Use a self-hosted deployment or a provider whose terms permit your workload.
+Private-network endpoints are blocked unless the Web2API operator explicitly sets
+`WEB2API_ALLOW_PRIVATE_NETWORK=true`.
 
 ## Notes
 
-- Nominatim has a [usage policy](https://operations.osmfoundation.org/policies/nominatim/) limiting to 1 request per second
-- OSRM demo server is for evaluation — consider self-hosting for production use
+- The recipe enforces at most one Nominatim request per second per process.
+- The public Nominatim service's [usage policy](https://operations.osmfoundation.org/policies/nominatim/)
+  does not permit generic proxy/no-code access, so it is no longer the default.
+- The OSRM demo server is for evaluation and is no longer the default.

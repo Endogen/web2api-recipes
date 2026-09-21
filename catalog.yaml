@@ -13,6 +13,9 @@ recipes:
     description: "X/Twitter recipe (requires bird CLI and auth env vars)."
     source: "./recipes/x"
     trusted: true
+    requires_env:
+      - BIRD_AUTH_TOKEN
+      - BIRD_CT0
 
   brave-search:
     description: "Brave Search recipe."
@@ -35,10 +38,15 @@ recipes:
     trusted: true
 
   openstreetmap:
-    description: "Geocoding, reverse geocoding, routing, and place search via OpenStreetMap."
+    description: "Geocoding, reverse geocoding, routing, and place search via configured Nominatim and OSRM providers."
     source: "./recipes/openstreetmap"
     trusted: true
+    requires_env:
+      - NOMINATIM_BASE_URL
+      - OSRM_BASE_URL
   nvidia:
     description: "NVIDIA NIM recipe using the direct integrate.api.nvidia.com API."
     source: "./recipes/nvidia"
     trusted: true
+    requires_env:
+      - NVIDIA_API_KEY

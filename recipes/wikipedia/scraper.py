@@ -8,7 +8,6 @@ from typing import Any
 from urllib.parse import quote
 
 from playwright.async_api import Page
-
 from web2api.scraper import BaseScraper, ScrapeResult
 
 
@@ -247,7 +246,8 @@ class Scraper(BaseScraper):
 
             # Skip edit links text and meta sections
             title = re.sub(r"\[edit\]$", "", title).strip()
-            if not title or title.lower() in ("references", "external links", "notes", "further reading"):
+            skipped_sections = ("references", "external links", "notes", "further reading")
+            if not title or title.lower() in skipped_sections:
                 continue
 
             # Collect text from sibling elements until the next heading

@@ -11,6 +11,8 @@ endpoints:
       tools_url:
         description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
         required: false
+        pattern: "^https?://"
+        max_length: 2048
         example: "http://localhost:8100"
     items:
       container: "body"
@@ -30,6 +32,8 @@ endpoints:
       tools_url:
         description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
         required: false
+        pattern: "^https?://"
+        max_length: 2048
         example: "http://localhost:8100"
     items:
       container: "body"
@@ -49,6 +53,8 @@ endpoints:
       tools_url:
         description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
         required: false
+        pattern: "^https?://"
+        max_length: 2048
         example: "http://localhost:8100"
     items:
       container: "body"
@@ -68,6 +74,8 @@ endpoints:
       tools_url:
         description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
         required: false
+        pattern: "^https?://"
+        max_length: 2048
         example: "http://localhost:8100"
     items:
       container: "body"
@@ -87,6 +95,8 @@ endpoints:
       tools_url:
         description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
         required: false
+        pattern: "^https?://"
+        max_length: 2048
         example: "http://localhost:8100"
     items:
       container: "body"
@@ -106,6 +116,8 @@ endpoints:
       tools_url:
         description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
         required: false
+        pattern: "^https?://"
+        max_length: 2048
         example: "http://localhost:8100"
     items:
       container: "body"
@@ -135,6 +147,7 @@ endpoints:
     description: "Molmo 2 8B vision model — analyze images and video"
     tool_name: "molmo2_vision"
     requires_query: true
+    accepts_files: true
     url: "https://playground.allenai.org"
     items:
       container: "body"
@@ -150,6 +163,7 @@ endpoints:
     description: "Molmo 2 8B Tracking — 8fps video tracking"
     tool_name: "molmo2_tracking"
     requires_query: true
+    accepts_files: true
     url: "https://playground.allenai.org"
     items:
       container: "body"
