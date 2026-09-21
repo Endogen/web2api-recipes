@@ -36,13 +36,16 @@ files=@photo.jpg
 
 ### Tool Calling
 
-Pass an MCP HTTP bridge URL to enable tool use:
+Pass an MCP HTTP bridge base URL to enable tool use. For Web2API's own
+bridge, the base URL ends in `/mcp` (which serves the tools list at
+`{base}/tools` and tool calls at `POST {base}/tools/{name}`):
 
 ```
-GET /allenai/chat?q=Search for Bitcoin price&tools_url=http://localhost:8100
+GET /allenai/chat?q=Search for Bitcoin price&tools_url=http://localhost:8100/mcp
 ```
 
-The model will discover tools from `{tools_url}/tools` and call them via `POST {tools_url}/tools/{name}`.
+The model will discover tools from `{tools_url}/tools` and call them via
+`POST {tools_url}/tools/{name}`.
 
 ## Custom Scraper
 

@@ -8,7 +8,7 @@ from typing import Any
 from urllib.parse import quote
 
 from playwright.async_api import Page
-from web2api.scraper import BaseScraper, ScrapeResult
+from web2api.scraper import BaseScraper, ScrapeResult, coerce_int
 
 
 class Scraper(BaseScraper):
@@ -27,8 +27,8 @@ class Scraper(BaseScraper):
         if not query:
             raise RuntimeError("Missing search query — pass q=<query>")
 
-        count = min(int(params.get("count", "20")), 50)
-        page_num = max(int(params.get("page", "1")), 1)
+        count = min(coerce_int(params.get("count", "20"), name="count", default=20), 50)
+        page_num = max(coerce_int(params.get("page", "1"), name="page", default=1), 1)
         offset = (page_num - 1) * 20
 
         url = (

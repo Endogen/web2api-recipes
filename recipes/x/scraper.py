@@ -5,10 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from contextlib import suppress
 from typing import Any
 
 from playwright.async_api import Page
-from web2api.scraper import BaseScraper, ScrapeResult
+from web2api.scraper import BaseScraper, ScrapeResult, coerce_int
 
 
 def _load_auth() -> tuple[str, str]:
@@ -54,7 +55,7 @@ class Scraper(BaseScraper):
         if not username:
             raise RuntimeError("Missing username — pass q=<username>")
 
-        count = min(int(params.get("count", "10")), 50)
+        count = min(coerce_int(params.get("count", "10"), name="count", default=10), 50)
         auth_token, ct0 = _load_auth()
 
         # Shell out to bird CLI
@@ -75,7 +76,8 @@ class Scraper(BaseScraper):
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
         except (TimeoutError, asyncio.CancelledError):
             proc.kill()
-            await proc.wait()
+            with suppress(Exception):
+                await proc.wait()
             raise
 
         if proc.returncode != 0:
