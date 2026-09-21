@@ -16,7 +16,7 @@ from urllib.parse import urlencode
 import httpx
 from playwright.async_api import Page
 from web2api.network_security import validate_httpx_request
-from web2api.scraper import BaseScraper, ScrapeResult
+from web2api.scraper import BaseScraper, ScrapeResult, coerce_float
 
 NOMINATIM_BASE_ENV = "NOMINATIM_BASE_URL"
 OSRM_BASE_ENV = "OSRM_BASE_URL"
@@ -186,7 +186,10 @@ async def _search_places(
         params["lat"] = lat
         params["lon"] = lon
         # viewbox for nearby search
-        r_deg = float(radius) / 111000 if radius else 0.05  # ~5km default
+        if radius:
+            r_deg = coerce_float(radius, name="radius", default=0.05) / 111000
+        else:
+            r_deg = 0.05  # ~5km default
         params["viewbox"] = (
             f"{float(lon) - r_deg},{float(lat) + r_deg},"
             f"{float(lon) + r_deg},{float(lat) - r_deg}"

@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 from playwright.async_api import Page
 from web2api.network_security import validate_httpx_request
-from web2api.scraper import BaseScraper, ScrapeResult
+from web2api.scraper import BaseScraper, InvalidParamsError, ScrapeResult
 
 API_BASE = "https://integrate.api.nvidia.com/v1"
 DEFAULT_MODEL = "meta/llama-3.1-70b-instruct"
@@ -24,10 +24,10 @@ async def _http_json(
 ) -> Any:
     headers = {"Accept": "application/json"}
     api_key = os.environ.get(API_KEY_ENV, "").strip()
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     if body is not None:
         headers["Content-Type"] = "application/json"
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
     try:
         async with httpx.AsyncClient(
             follow_redirects=True,
@@ -53,13 +53,19 @@ async def _http_json(
 def _as_float(value: Any, *, default: float | None = None) -> float | None:
     if value in (None, ""):
         return default
-    return float(value)
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise InvalidParamsError(f"invalid numeric parameter: {value!r}") from exc
 
 
 def _as_int(value: Any, *, default: int | None = None) -> int | None:
     if value in (None, ""):
         return default
-    return int(value)
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise InvalidParamsError(f"invalid numeric parameter: {value!r}") from exc
 
 
 class Scraper(BaseScraper):

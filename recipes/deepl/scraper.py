@@ -56,7 +56,7 @@ class Scraper(BaseScraper):
         stable_count = 0
         required_stable = 6  # must be unchanged for 6 consecutive checks (3s)
 
-        for _ in range(80):  # up to 40 seconds total
+        for _ in range(50):  # up to 25s (keep under the 30s default SCRAPE_TIMEOUT)
             await asyncio.sleep(0.5)
             current = await self._read_target(page)
 

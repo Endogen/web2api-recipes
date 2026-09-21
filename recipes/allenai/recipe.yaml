@@ -9,11 +9,11 @@ endpoints:
     url: "https://playground.allenai.org"
     params:
       tools_url:
-        description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
+        description: "MCP HTTP bridge base URL for tool calling (tools listed at <url>/tools, called via POST <url>/tools/{name})"
         required: false
         pattern: "^https?://"
         max_length: 2048
-        example: "http://localhost:8100"
+        example: "http://localhost:8100/mcp"
     items:
       container: "body"
       fields:
@@ -30,11 +30,11 @@ endpoints:
     url: "https://playground.allenai.org"
     params:
       tools_url:
-        description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
+        description: "MCP HTTP bridge base URL for tool calling (tools listed at <url>/tools, called via POST <url>/tools/{name})"
         required: false
         pattern: "^https?://"
         max_length: 2048
-        example: "http://localhost:8100"
+        example: "http://localhost:8100/mcp"
     items:
       container: "body"
       fields:
@@ -51,11 +51,11 @@ endpoints:
     url: "https://playground.allenai.org"
     params:
       tools_url:
-        description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
+        description: "MCP HTTP bridge base URL for tool calling (tools listed at <url>/tools, called via POST <url>/tools/{name})"
         required: false
         pattern: "^https?://"
         max_length: 2048
-        example: "http://localhost:8100"
+        example: "http://localhost:8100/mcp"
     items:
       container: "body"
       fields:
@@ -72,11 +72,11 @@ endpoints:
     url: "https://playground.allenai.org"
     params:
       tools_url:
-        description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
+        description: "MCP HTTP bridge base URL for tool calling (tools listed at <url>/tools, called via POST <url>/tools/{name})"
         required: false
         pattern: "^https?://"
         max_length: 2048
-        example: "http://localhost:8100"
+        example: "http://localhost:8100/mcp"
     items:
       container: "body"
       fields:
@@ -93,11 +93,11 @@ endpoints:
     url: "https://playground.allenai.org"
     params:
       tools_url:
-        description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
+        description: "MCP HTTP bridge base URL for tool calling (tools listed at <url>/tools, called via POST <url>/tools/{name})"
         required: false
         pattern: "^https?://"
         max_length: 2048
-        example: "http://localhost:8100"
+        example: "http://localhost:8100/mcp"
     items:
       container: "body"
       fields:
@@ -114,11 +114,11 @@ endpoints:
     url: "https://playground.allenai.org"
     params:
       tools_url:
-        description: "MCP HTTP bridge URL for tool calling (GET /tools, POST /tools/{name})"
+        description: "MCP HTTP bridge base URL for tool calling (tools listed at <url>/tools, called via POST <url>/tools/{name})"
         required: false
         pattern: "^https?://"
         max_length: 2048
-        example: "http://localhost:8100"
+        example: "http://localhost:8100/mcp"
     items:
       container: "body"
       fields:
