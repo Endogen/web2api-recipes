@@ -16,15 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: Endogen/web2api
           path: web2api-core
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10
         with:
-          version: "0.6.11"
-      - uses: actions/setup-python@v5
+          version: "0.12.18"
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: uv sync --project web2api-core --extra dev --frozen
