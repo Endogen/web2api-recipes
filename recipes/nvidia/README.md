@@ -40,7 +40,7 @@ Send a chat prompt to a model.
 
 Optional params:
 
-- `model` — defaults to `meta/llama-3.1-70b-instruct`
+- `model` — defaults to `nvidia/nemotron-3-super-120b-a12b`
 - `system`
 - `temperature`
 - `top_p`
@@ -49,12 +49,14 @@ Optional params:
 Examples:
 
 ```bash
-curl -s 'http://localhost:8010/nvidia/chat?q=Explain+RAG&model=meta/llama-3.1-70b-instruct' | jq
-curl -s 'http://localhost:8010/nvidia/chat?q=Write+a+haiku&model=google/gemma-3-27b-it&temperature=0.8' | jq
+curl -s 'http://localhost:8010/nvidia/chat?q=Explain+RAG&model=nvidia/nemotron-3-super-120b-a12b' | jq
+curl -s 'http://localhost:8010/nvidia/chat?q=Write+a+haiku&model=moonshotai/kimi-k3&temperature=0.8' | jq
 ```
 
 ## Notes
 
 - `/nvidia/models` is readable without auth upstream today, but `/nvidia/chat` requires `Authorization: Bearer $NVIDIA_API_KEY`.
 - This recipe currently targets text chat models via `/v1/chat/completions`.
+- NVIDIA's hosted model catalog changes over time. Use `/nvidia/models` to choose another
+  currently available model ID if the default is retired.
 - If NVIDIA later exposes enough stable browser-only free flows that bypass API keys, then a Playwright fallback could make sense. Right now that would just be more fragile for no gain.

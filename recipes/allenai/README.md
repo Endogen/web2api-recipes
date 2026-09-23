@@ -47,6 +47,12 @@ GET /allenai/chat?q=Search for Bitcoin price&tools_url=http://localhost:8100/mcp
 The model will discover tools from `{tools_url}/tools` and call them via
 `POST {tools_url}/tools/{name}`.
 
+`tools_url` must be an HTTP(S) URL. Local/private bridge addresses are blocked by
+default; operators must explicitly enable `WEB2API_ALLOW_PRIVATE_NETWORK=true`.
+If the bridge is protected, expose an appropriately authenticated proxy or make
+only the required bridge paths public. Do not expose privileged tools without an
+authentication boundary.
+
 ## Custom Scraper
 
 This recipe uses a custom scraper (`scraper.py`) that communicates with Allen AI's streaming chat API directly, bypassing browser automation. It handles:

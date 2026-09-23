@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
+import logging
 from typing import Any
 from urllib.parse import quote
 
+from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import Page
-from web2api.scraper import BaseScraper, ScrapeResult, coerce_int
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+from web2api.scraper import BaseScraper, InvalidParamsError, ScrapeResult, coerce_int
+
+logger = logging.getLogger(__name__)
 
 
 class Scraper(BaseScraper):
@@ -19,13 +23,17 @@ class Scraper(BaseScraper):
     async def scrape(self, endpoint: str, page: Page, params: dict[str, Any]) -> ScrapeResult:
         query = (params.get("query") or "").strip()
         if not query:
-            raise RuntimeError("Missing search query — pass q=<query>")
+            raise InvalidParamsError("missing search query — pass q=<query>")
 
-        count = min(coerce_int(params.get("count", "20"), name="count", default=20), 50)
-        page_num = max(coerce_int(params.get("page", "1"), name="page", default=1), 1)
+        count = coerce_int(params.get("count", 20), name="count", default=20)
+        if not 1 <= count <= 50:
+            raise InvalidParamsError("count must be between 1 and 50")
+        page_num = coerce_int(params.get("page", 1), name="page", default=1)
+        if page_num < 1:
+            raise InvalidParamsError("page must be at least 1")
         offset = (page_num - 1) * 20
 
-        url = f"https://search.brave.com/search?q={quote(query)}&offset={offset}"
+        url = f"https://search.brave.com/search?q={quote(query, safe='')}&offset={offset}"
 
         # Anti-detection: remove webdriver flag before navigation
         await page.add_init_script(
@@ -33,22 +41,20 @@ class Scraper(BaseScraper):
         )
         await page.goto(url, wait_until="domcontentloaded", timeout=20000)
 
-        # Let JS render results
-        await asyncio.sleep(3)
-
         # Check for CAPTCHA
         title = await page.title()
         if "captcha" in title.lower():
-            raise RuntimeError(
-                "Brave Search returned a CAPTCHA — headless browser was detected"
-            )
+            raise RuntimeError("Brave Search returned a CAPTCHA — headless browser was detected")
 
         # Wait for result snippets
         try:
-            await page.wait_for_selector(
-                '#results .snippet[data-type="web"]', timeout=8000
-            )
-        except Exception:
+            await page.wait_for_selector('#results .snippet[data-type="web"]', timeout=12000)
+        except PlaywrightTimeoutError:
+            title = await page.title()
+            if "captcha" in title.lower():
+                raise RuntimeError(
+                    "Brave Search returned a CAPTCHA — headless browser was detected"
+                ) from None
             return ScrapeResult(items=[], current_page=page_num, has_next=False)
 
         # Extract web results (skip AI answers, ads, etc.)
@@ -60,13 +66,14 @@ class Scraper(BaseScraper):
             if item:
                 items.append(item)
 
-        # Check for next page
-        has_next = len(snippets) >= 10
+        next_link = await page.query_selector(
+            "a[rel='next'], a[aria-label='Next'], .pagination a.next"
+        )
 
         return ScrapeResult(
             items=items,
             current_page=page_num,
-            has_next=has_next,
+            has_next=next_link is not None,
         )
 
     @staticmethod
@@ -128,5 +135,6 @@ class Scraper(BaseScraper):
 
             return result
 
-        except Exception:
+        except PlaywrightError as exc:
+            logger.debug("Skipping malformed Brave result: %s", exc)
             return None

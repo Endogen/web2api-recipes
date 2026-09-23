@@ -19,10 +19,18 @@ GET /x/posts?q=elonmusk
 Returns a list of posts, each with:
 
 - `text` — post content
+- `author` / `author_name`
+- `timestamp` and canonical `url`
+- `replies`, `reposts`, `likes`, and `views`
+- `is_retweet`
 
 ## Requirements
 
 - **Authentication required** — X requires login cookies for profile scraping
+- Node.js 22 or newer and npm
+- `bird` 0.8.0 (`npm install -g @steipete/bird@0.8.0`); the recipe metadata can
+  generate this npm install step, but intentionally does not install a
+  distribution's potentially outdated Node.js package
 - Set the following environment variables:
 
 | Variable | Description |
@@ -41,3 +49,5 @@ Returns a list of posts, each with:
 
 - Tokens may expire and need periodic refresh
 - Rate limits apply based on X's policies
+- Credentials are passed to `bird` through its `AUTH_TOKEN` and `CT0` environment
+  variables, not command-line arguments.

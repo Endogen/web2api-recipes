@@ -14,12 +14,14 @@ import json
 import logging
 import mimetypes
 import uuid
+from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 from playwright.async_api import Page
 from web2api.network_security import validate_httpx_request
-from web2api.scraper import BaseScraper, ScrapeResult
+from web2api.scraper import BaseScraper, InvalidParamsError, ScrapeResult
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,7 @@ _SUPPORTED = set(_MODEL_MAP.keys())
 
 
 # ── HTTP helpers ────────────────────────────────────────────────────
+
 
 async def _http_get_json(url: str) -> Any:
     """GET JSON with redirect and private-network validation."""
@@ -103,7 +106,7 @@ async def _chat_api(
             handle = open(file_path, "rb")  # noqa: SIM115 - closed together below
             upload_handles.append(handle)
             mime = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
-            filename = file_path.rsplit("/", 1)[-1]
+            filename = Path(file_path).name
             files.append(("files", (filename, handle, mime)))
 
         async with httpx.AsyncClient(
@@ -132,18 +135,9 @@ async def _chat_api(
     tool_calls: list[dict] = []
     model_used = model_id
 
-    events: list[dict] = []
-    buf = ""
-    for line in raw.split("\n"):
-        buf += line
-        try:
-            events.append(json.loads(buf))
-            buf = ""
-        except json.JSONDecodeError:
-            buf += "\n"
+    events = _parse_stream_events(raw)
 
     for evt in events:
-
         if evt.get("type") == "start":
             thread_id = evt.get("message")
 
@@ -153,17 +147,18 @@ async def _chat_api(
         if evt.get("type") == "thinkingResponse" and "content" in evt:
             thinking = (thinking or "") + evt["content"]
 
-        if "messages" in evt:
-            for msg in evt["messages"]:
-                if msg.get("role") == "assistant" and msg.get("final"):
-                    response_content = msg.get("content") or response_content
-                    thinking = msg.get("thinking") or thinking
-                    finish_reason = msg.get("finishReason")
-                    message_id = msg.get("id")
-                    if msg.get("modelId"):
-                        model_used = msg["modelId"]
-                    if msg.get("toolCalls"):
-                        tool_calls = msg["toolCalls"]
+        for msg in evt.get("messages", []):
+            if not isinstance(msg, dict):
+                continue
+            if msg.get("role") == "assistant" and msg.get("final"):
+                response_content = msg.get("content") or response_content
+                thinking = msg.get("thinking") or thinking
+                finish_reason = msg.get("finishReason")
+                message_id = msg.get("id")
+                if msg.get("modelId"):
+                    model_used = msg["modelId"]
+                if isinstance(msg.get("toolCalls"), list):
+                    tool_calls = msg["toolCalls"]
 
     return {
         "content": response_content,
@@ -176,35 +171,72 @@ async def _chat_api(
     }
 
 
-def _clean_schema(schema: dict) -> dict:
-    """Strip fields from JSON Schema that Allen AI's API rejects."""
-    cleaned = {}
-    for key, value in schema.items():
-        if key == "default":
+def _parse_stream_events(raw: str) -> list[dict[str, Any]]:
+    """Parse newline-delimited or pretty-printed JSON response events."""
+    events: list[dict[str, Any]] = []
+    buf = ""
+    for line in raw.split("\n"):
+        if not line.strip() and not buf:
             continue
-        if key == "properties" and isinstance(value, dict):
-            cleaned[key] = {
-                prop_name: _clean_schema(prop_schema)
-                for prop_name, prop_schema in value.items()
-            }
-        elif isinstance(value, dict):
-            cleaned[key] = _clean_schema(value)
-        else:
-            cleaned[key] = value
-    return cleaned
+        buf += line
+        try:
+            event = json.loads(buf)
+            buf = ""
+        except json.JSONDecodeError:
+            buf += "\n"
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+
+    if buf.strip():
+        logger.warning("Ignoring incomplete Allen AI stream event")
+    return events
+
+
+def _clean_schema(schema: Any) -> Any:
+    """Strip fields from JSON Schema that Allen AI's API rejects."""
+    if isinstance(schema, list):
+        return [_clean_schema(value) for value in schema]
+    if not isinstance(schema, dict):
+        return schema
+    return {key: _clean_schema(value) for key, value in schema.items() if key != "default"}
 
 
 # ── Tool bridge helpers ─────────────────────────────────────────────
 
+
 async def _fetch_tools(tools_url: str) -> list[dict]:
     """Fetch tool definitions from an MCP HTTP bridge."""
-    return await _http_get_json(f"{tools_url}/tools")
+    payload = await _http_get_json(f"{tools_url}/tools")
+    if not isinstance(payload, list):
+        raise RuntimeError("tool bridge returned a non-list tools payload")
+
+    tools: list[dict[str, Any]] = []
+    for item in payload:
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str):
+            logger.warning("Skipping malformed tool definition from %s", tools_url)
+            continue
+        parameters = item.get("parameters", {"type": "object", "properties": {}})
+        if not isinstance(parameters, dict):
+            logger.warning("Skipping tool %s with invalid parameters schema", item["name"])
+            continue
+        tools.append(
+            {
+                "name": item["name"],
+                "description": str(item.get("description") or ""),
+                "parameters": parameters,
+            }
+        )
+    return tools
 
 
 async def _call_tool(tools_url: str, tool_name: str, args: dict) -> str:
     """Call a tool and return the result as a string."""
     try:
-        result = await _http_post_json(f"{tools_url}/tools/{tool_name}", args)
+        if not isinstance(args, dict):
+            return json.dumps({"error": "tool arguments must be a JSON object"})
+        encoded_name = quote(tool_name, safe="")
+        result = await _http_post_json(f"{tools_url}/tools/{encoded_name}", args)
         payload = result.get("result", result)
         return json.dumps(payload) if not isinstance(payload, str) else payload
     except Exception as ex:
@@ -212,6 +244,7 @@ async def _call_tool(tools_url: str, tool_name: str, args: dict) -> str:
 
 
 # ── Scraper ─────────────────────────────────────────────────────────
+
 
 class Scraper(BaseScraper):
     """Query Allen AI models with optional tool calling."""
@@ -230,15 +263,16 @@ class Scraper(BaseScraper):
         model_id = _MODEL_MAP[endpoint]
         query = (params.get("query") or "").strip()
         if not query:
-            return ScrapeResult(
-                items=[{"prompt": "", "response": "", "model": model_id}]
-            )
+            raise InvalidParamsError("missing prompt — pass q=<prompt>")
         file_paths = params.get("file_paths") or []
         tools_url = (params.get("tools_url") or "").strip().rstrip("/")
         return await self._chat(model_id, query, tools_url, file_paths=file_paths)
 
     async def _chat(
-        self, model_id: str, prompt: str, tools_url: str,
+        self,
+        model_id: str,
+        prompt: str,
+        tools_url: str,
         file_paths: list[str] | None = None,
     ) -> ScrapeResult:
         """Send a prompt, optionally with tool calling loop."""
@@ -259,14 +293,19 @@ class Scraper(BaseScraper):
             if len(tools) > MAX_TOOLS:
                 logger.warning(
                     "Limiting tools from %d to %d (Allen AI streaming limit)",
-                    len(tools), MAX_TOOLS,
+                    len(tools),
+                    MAX_TOOLS,
                 )
             tool_defs_json = json.dumps(allen_tools)
 
         # Initial request
         result = await _chat_api(
-            anon_id, model_id, prompt,
-            None, None, None,
+            anon_id,
+            model_id,
+            prompt,
+            None,
+            None,
+            None,
             tool_defs_json,
             bool(tools_url),
             file_paths=file_paths,
@@ -276,46 +315,54 @@ class Scraper(BaseScraper):
         tool_log: list[dict[str, Any]] = []
         rounds = 0
 
-        while (
-            result.get("tool_calls")
-            and tools_url
-            and rounds < MAX_TOOL_ROUNDS
-        ):
+        while result.get("tool_calls") and tools_url and rounds < MAX_TOOL_ROUNDS:
             rounds += 1
-            parent_id = result["message_id"]
+            parent_id = result.get("message_id")
+            if not parent_id:
+                logger.warning("Allen AI requested tools without a parent message ID")
+                break
 
             for tool_call in result["tool_calls"]:
-                tool_name = tool_call["toolName"]
-                tool_call_id = tool_call["toolCallId"]
+                if not isinstance(tool_call, dict):
+                    logger.warning("Ignoring malformed Allen AI tool call")
+                    continue
+                tool_name = tool_call.get("toolName")
+                tool_call_id = tool_call.get("toolCallId")
+                if not isinstance(tool_name, str) or not isinstance(tool_call_id, str):
+                    logger.warning("Ignoring Allen AI tool call without name or ID")
+                    continue
                 args = tool_call.get("args", {})
                 if isinstance(args, str):
                     try:
                         args = json.loads(args)
                     except (json.JSONDecodeError, TypeError):
-                        pass
+                        args = None
 
                 logger.info(
                     "Tool call round %d: %s(%s)",
-                    rounds, tool_name, json.dumps(args)[:200],
+                    rounds,
+                    tool_name,
+                    json.dumps(args)[:200],
                 )
 
                 # Call tool via Python HTTP
                 tool_result = await _call_tool(tools_url, tool_name, args)
 
-                tool_log.append({
-                    "round": rounds,
-                    "tool": tool_name,
-                    "args": args,
-                    "result": (
-                        tool_result[:2000]
-                        if isinstance(tool_result, str)
-                        else tool_result
-                    ),
-                })
+                tool_log.append(
+                    {
+                        "round": rounds,
+                        "tool": tool_name,
+                        "args": args,
+                        "result": (
+                            tool_result[:2000] if isinstance(tool_result, str) else tool_result
+                        ),
+                    }
+                )
 
                 # Send tool result back to model
                 result = await _chat_api(
-                    anon_id, model_id,
+                    anon_id,
+                    model_id,
                     tool_result,
                     parent_id,
                     "tool_call_result",
@@ -355,15 +402,17 @@ class Scraper(BaseScraper):
         for model in result:
             if not model.get("is_visible") or model.get("is_deprecated"):
                 continue
-            items.append({
-                "title": model.get("name", ""),
-                "id": model.get("id", ""),
-                "family": model.get("family_id", ""),
-                "type": model.get("model_type", ""),
-                "description": model.get("description", ""),
-                "can_think": model.get("can_think", False),
-                "can_call_tools": model.get("can_call_tools", False),
-                "accepts_files": model.get("accepts_files", False),
-            })
+            items.append(
+                {
+                    "title": model.get("name", ""),
+                    "id": model.get("id", ""),
+                    "family": model.get("family_id", ""),
+                    "type": model.get("model_type", ""),
+                    "description": model.get("description", ""),
+                    "can_think": model.get("can_think", False),
+                    "can_call_tools": model.get("can_call_tools", False),
+                    "accepts_files": model.get("accepts_files", False),
+                }
+            )
 
         return ScrapeResult(items=items)

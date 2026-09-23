@@ -12,7 +12,7 @@ from web2api.network_security import validate_httpx_request
 from web2api.scraper import BaseScraper, InvalidParamsError, ScrapeResult
 
 API_BASE = "https://integrate.api.nvidia.com/v1"
-DEFAULT_MODEL = "meta/llama-3.1-70b-instruct"
+DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 API_KEY_ENV = "NVIDIA_API_KEY"
 
 
@@ -39,9 +39,13 @@ async def _http_json(
             return response.json()
     except httpx.HTTPStatusError as exc:
         detail = exc.response.text.strip()
-        if exc.response.status_code == 401:
+        if exc.response.status_code in {401, 403}:
             raise RuntimeError(
                 f"NVIDIA API authorization failed. Set {API_KEY_ENV} and try again."
+            ) from None
+        if exc.response.status_code == 402:
+            raise RuntimeError(
+                "NVIDIA API credits are required for this model or account."
             ) from None
         raise RuntimeError(
             f"NVIDIA API request failed ({exc.response.status_code}): {detail}"
@@ -88,6 +92,8 @@ class Scraper(BaseScraper):
 
     async def _models(self, params: dict[str, Any]) -> ScrapeResult:
         payload = await _http_json(f"{API_BASE}/models")
+        if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+            raise RuntimeError("NVIDIA models API returned an unexpected payload")
         owner = (params.get("owner") or "").strip().lower()
         prefix = (params.get("prefix") or "").strip().lower()
 
@@ -99,19 +105,21 @@ class Scraper(BaseScraper):
                 continue
             if prefix and not model_id.lower().startswith(prefix):
                 continue
-            items.append({
-                "id": model_id,
-                "owner": model_owner,
-                "object": model.get("object"),
-                "created": model.get("created"),
-            })
+            items.append(
+                {
+                    "id": model_id,
+                    "owner": model_owner,
+                    "object": model.get("object"),
+                    "created": model.get("created"),
+                }
+            )
 
         return ScrapeResult(items=items)
 
     async def _chat(self, params: dict[str, Any]) -> ScrapeResult:
         prompt = (params.get("query") or "").strip()
         if not prompt:
-            raise RuntimeError("Missing prompt — pass q=<prompt>")
+            raise InvalidParamsError("missing prompt — pass q=<prompt>")
 
         model = (params.get("model") or DEFAULT_MODEL).strip()
         system = (params.get("system") or "").strip()

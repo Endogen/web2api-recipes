@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 from playwright.async_api import Page
-from web2api.scraper import BaseScraper, ScrapeResult
+from web2api.scraper import BaseScraper, InvalidParamsError, ScrapeResult
 
 # Map endpoint names to (source_lang, target_lang) pairs
 _LANG_PAIRS: dict[str, tuple[str, str]] = {
@@ -26,14 +25,7 @@ class Scraper(BaseScraper):
         query = params.get("query") or ""
 
         if not query.strip():
-            return ScrapeResult(
-                items=[{
-                    "source_text": "",
-                    "translated_text": "",
-                    "source_lang": source_lang,
-                    "target_lang": target_lang,
-                }]
-            )
+            raise InvalidParamsError("missing text — pass q=<text>")
 
         await page.goto(f"https://www.deepl.com/en/translator#{source_lang}/{target_lang}/")
 
@@ -57,7 +49,7 @@ class Scraper(BaseScraper):
         required_stable = 6  # must be unchanged for 6 consecutive checks (3s)
 
         for _ in range(50):  # up to 25s (keep under the 30s default SCRAPE_TIMEOUT)
-            await asyncio.sleep(0.5)
+            await page.wait_for_timeout(500)
             current = await self._read_target(page)
 
             if not current or current == query.strip():
@@ -76,21 +68,21 @@ class Scraper(BaseScraper):
             raise RuntimeError("Translation did not appear within timeout")
 
         return ScrapeResult(
-            items=[{
-                "source_text": query,
-                "translated_text": translated,
-                "source_lang": source_lang,
-                "target_lang": target_lang,
-            }],
+            items=[
+                {
+                    "source_text": query,
+                    "translated_text": translated,
+                    "source_lang": source_lang,
+                    "target_lang": target_lang,
+                }
+            ],
         )
 
     @staticmethod
     async def _read_target(page: Page) -> str:
         """Extract the current translation text from the target area."""
         # Try the value attribute first
-        target_area = await page.query_selector(
-            'd-textarea[data-testid="translator-target-input"]'
-        )
+        target_area = await page.query_selector('d-textarea[data-testid="translator-target-input"]')
         if target_area is not None:
             text = await target_area.get_attribute("value")
             if text and text.strip():
@@ -100,9 +92,7 @@ class Scraper(BaseScraper):
                 return text.strip()
 
         # Fallback: paragraph inside the target
-        target_p = await page.query_selector(
-            '[data-testid="translator-target-input"] p'
-        )
+        target_p = await page.query_selector('[data-testid="translator-target-input"] p')
         if target_p is not None:
             text = await target_p.text_content()
             if text and text.strip():

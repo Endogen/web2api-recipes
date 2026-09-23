@@ -34,7 +34,7 @@ endpoints:
       model:
         description: "Model ID from /nvidia/models"
         required: false
-        example: "meta/llama-3.1-70b-instruct"
+        example: "nvidia/nemotron-3-super-120b-a12b"
       system:
         description: "Optional system prompt"
         required: false
@@ -43,7 +43,7 @@ endpoints:
         description: "Sampling temperature"
         type: "number"
         minimum: 0
-        maximum: 2
+        maximum: 1
         required: false
         example: 0.2
       top_p:

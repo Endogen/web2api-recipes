@@ -1,6 +1,6 @@
-version: "2.0.0"
+version: "2.1.0"
 web2api:
-  min: "0.5.0"
+  min: "0.7.0"
 requires_env:
   - NOMINATIM_BASE_URL
   - OSRM_BASE_URL

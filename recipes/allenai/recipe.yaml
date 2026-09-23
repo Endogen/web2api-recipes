@@ -11,7 +11,7 @@ endpoints:
       tools_url:
         description: "MCP HTTP bridge base URL for tool calling (tools listed at <url>/tools, called via POST <url>/tools/{name})"
         required: false
-        pattern: "^https?://"
+        pattern: '^https?://[^\s]+$'
         max_length: 2048
         example: "http://localhost:8100/mcp"
     items:
@@ -32,7 +32,7 @@ endpoints:
       tools_url:
         description: "MCP HTTP bridge base URL for tool calling (tools listed at <url>/tools, called via POST <url>/tools/{name})"
         required: false
-        pattern: "^https?://"
+        pattern: '^https?://[^\s]+$'
         max_length: 2048
         example: "http://localhost:8100/mcp"
     items:
@@ -53,7 +53,7 @@ endpoints:
       tools_url:
         description: "MCP HTTP bridge base URL for tool calling (tools listed at <url>/tools, called via POST <url>/tools/{name})"
         required: false
-        pattern: "^https?://"
+        pattern: '^https?://[^\s]+$'
         max_length: 2048
         example: "http://localhost:8100/mcp"
     items:
@@ -74,7 +74,7 @@ endpoints:
       tools_url:
         description: "MCP HTTP bridge base URL for tool calling (tools listed at <url>/tools, called via POST <url>/tools/{name})"
         required: false
-        pattern: "^https?://"
+        pattern: '^https?://[^\s]+$'
         max_length: 2048
         example: "http://localhost:8100/mcp"
     items:
@@ -95,7 +95,7 @@ endpoints:
       tools_url:
         description: "MCP HTTP bridge base URL for tool calling (tools listed at <url>/tools, called via POST <url>/tools/{name})"
         required: false
-        pattern: "^https?://"
+        pattern: '^https?://[^\s]+$'
         max_length: 2048
         example: "http://localhost:8100/mcp"
     items:
@@ -116,7 +116,7 @@ endpoints:
       tools_url:
         description: "MCP HTTP bridge base URL for tool calling (tools listed at <url>/tools, called via POST <url>/tools/{name})"
         required: false
-        pattern: "^https?://"
+        pattern: '^https?://[^\s]+$'
         max_length: 2048
         example: "http://localhost:8100/mcp"
     items:

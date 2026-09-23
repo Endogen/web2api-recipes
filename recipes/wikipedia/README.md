@@ -26,11 +26,16 @@ Each result includes:
 
 ### Article Response
 
-Returns the full article text content.
+Returns a structured article with `title`, `url`, `summary`, `sections`, and,
+when available, `infobox`, `table_of_contents`, `categories`, and
+`languages_available`. Structured values are serialized by Web2API into JSON
+strings in the scalar response field map.
 
 ## Pagination
 
-Search results use offset-based pagination (`offset=0`, `offset=20`, ...).
+Search results use page-based requests backed by Wikipedia's `limit` and
+`offset` parameters. Changing `count` also changes the page stride, so results
+do not overlap.
 
 ## Requirements
 

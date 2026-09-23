@@ -6,4 +6,9 @@ target-version = "py312"
 select = ["E", "F", "I", "UP"]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "-m 'not e2e'"
 testpaths = ["tests"]
+markers = [
+  "e2e: live-network checks against external recipe providers",
+]

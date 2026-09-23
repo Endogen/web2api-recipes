@@ -29,6 +29,9 @@ GET /openstreetmap/reverse?q=52.5163,13.3777
 
 Format: `q=latitude,longitude`
 
+Latitude must be between -90 and 90, longitude between -180 and 180, and
+reverse geocoding accepts exactly one coordinate pair.
+
 ### Route
 
 ```
@@ -51,6 +54,8 @@ GET /openstreetmap/search?q=pharmacy&lat=52.52&lon=13.405&radius=2000
 
 - `lat`, `lon` — center point for nearby search
 - `radius` — search radius in meters (default: ~5km)
+
+`lat` and `lon` must be provided together; zero-valued coordinates are valid.
 
 ## Requirements
 

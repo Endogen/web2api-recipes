@@ -18,7 +18,7 @@ GET /deepl/en-de?q=How are you?
 
 ### Response
 
-Returns the translated text in the `text` field.
+Returns `source_text`, `translated_text`, `source_lang`, and `target_lang`.
 
 ## Requirements
 

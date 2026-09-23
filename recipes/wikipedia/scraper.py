@@ -2,13 +2,36 @@
 
 from __future__ import annotations
 
-import json
+import logging
 import re
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlsplit
 
+from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import Page
-from web2api.scraper import BaseScraper, ScrapeResult, coerce_int
+from web2api.scraper import BaseScraper, InvalidParamsError, ScrapeResult, coerce_int
+
+logger = logging.getLogger(__name__)
+
+
+def _article_slug(query: str) -> str:
+    parsed = urlsplit(query)
+    if parsed.scheme:
+        hostname = (parsed.hostname or "").rstrip(".").lower()
+        if parsed.scheme not in {"http", "https"} or hostname not in {
+            "en.wikipedia.org",
+            "www.en.wikipedia.org",
+        }:
+            raise InvalidParamsError("article URL must point to en.wikipedia.org")
+        if not parsed.path.startswith("/wiki/"):
+            raise InvalidParamsError("article URL must contain a /wiki/<title> path")
+        slug = unquote(parsed.path.removeprefix("/wiki/"))
+    else:
+        slug = query
+    slug = slug.strip().replace(" ", "_")
+    if not slug:
+        raise InvalidParamsError("missing article title — pass q=<title>")
+    return quote(slug, safe="_()")
 
 
 class Scraper(BaseScraper):
@@ -25,15 +48,20 @@ class Scraper(BaseScraper):
     async def _search(self, page: Page, params: dict[str, Any]) -> ScrapeResult:
         query = (params.get("query") or "").strip()
         if not query:
-            raise RuntimeError("Missing search query — pass q=<query>")
+            raise InvalidParamsError("missing search query — pass q=<query>")
 
-        count = min(coerce_int(params.get("count", "20"), name="count", default=20), 50)
-        page_num = max(coerce_int(params.get("page", "1"), name="page", default=1), 1)
-        offset = (page_num - 1) * 20
+        count = coerce_int(params.get("count", 20), name="count", default=20)
+        if not 1 <= count <= 50:
+            raise InvalidParamsError("count must be between 1 and 50")
+        page_num = coerce_int(params.get("page", 1), name="page", default=1)
+        if page_num < 1:
+            raise InvalidParamsError("page must be at least 1")
+        offset = (page_num - 1) * count
 
         url = (
             f"https://en.wikipedia.org/w/index.php"
-            f"?search={quote(query)}&title=Special:Search&ns0=1&offset={offset}"
+            f"?search={quote(query, safe='')}&title=Special:Search&ns0=1"
+            f"&limit={count}&offset={offset}"
         )
 
         await page.goto(url, wait_until="domcontentloaded")
@@ -62,11 +90,9 @@ class Scraper(BaseScraper):
     async def _article(self, page: Page, params: dict[str, Any]) -> ScrapeResult:
         query = (params.get("query") or "").strip()
         if not query:
-            raise RuntimeError("Missing article title — pass q=<title>")
+            raise InvalidParamsError("missing article title — pass q=<title>")
 
-        # Support both plain titles and URL slugs
-        slug = query.replace(" ", "_")
-        url = f"https://en.wikipedia.org/wiki/{quote(slug, safe='/:')}"
+        url = f"https://en.wikipedia.org/wiki/{_article_slug(query)}"
 
         await page.goto(url, wait_until="domcontentloaded")
 
@@ -122,11 +148,6 @@ class Scraper(BaseScraper):
         if lang_count:
             item["languages_available"] = lang_count
 
-        # Serialize complex values to JSON strings (FieldValue only allows scalars)
-        for key, val in item.items():
-            if isinstance(val, (list, dict)):
-                item[key] = json.dumps(val, ensure_ascii=False)
-
         return ScrapeResult(items=[item], current_page=1, has_next=False)
 
     @staticmethod
@@ -163,7 +184,8 @@ class Scraper(BaseScraper):
                     item["size_info"] = size_info
 
                 items.append(item)
-            except Exception:
+            except PlaywrightError as exc:
+                logger.debug("Skipping malformed Wikipedia search result: %s", exc)
                 continue
 
         return items
@@ -174,9 +196,7 @@ class Scraper(BaseScraper):
         paragraphs: list[str] = []
 
         # Get all direct <p> children of the content div, before the TOC
-        els = await page.query_selector_all(
-            "#mw-content-text .mw-parser-output > p"
-        )
+        els = await page.query_selector_all("#mw-content-text .mw-parser-output > p")
         for el in els:
             text = (await el.text_content() or "").strip()
             # Skip empty paragraphs and the coordinates line
@@ -234,8 +254,7 @@ class Scraper(BaseScraper):
 
         # Get all h2/h3 headings and their following content
         headings = await page.query_selector_all(
-            "#mw-content-text .mw-parser-output > h2, "
-            "#mw-content-text .mw-parser-output > h3"
+            "#mw-content-text .mw-parser-output > h2, #mw-content-text .mw-parser-output > h3"
         )
 
         for heading in headings:
@@ -252,9 +271,7 @@ class Scraper(BaseScraper):
 
             # Collect text from sibling elements until the next heading
             content_parts: list[str] = []
-            sibling = await heading.evaluate_handle(
-                "el => el.nextElementSibling"
-            )
+            sibling = await heading.evaluate_handle("el => el.nextElementSibling")
 
             for _ in range(50):  # safety cap
                 if not sibling:
@@ -267,17 +284,17 @@ class Scraper(BaseScraper):
                     text = (text or "").strip()
                     if text:
                         content_parts.append(text)
-                sibling = await sibling.evaluate_handle(
-                    "el => el.nextElementSibling"
-                )
+                sibling = await sibling.evaluate_handle("el => el.nextElementSibling")
 
             level = "h2" if await heading.evaluate("el => el.tagName") == "H2" else "h3"
 
-            sections.append({
-                "heading": title,
-                "level": level,
-                "content": "\n\n".join(content_parts),
-            })
+            sections.append(
+                {
+                    "heading": title,
+                    "level": level,
+                    "content": "\n\n".join(content_parts),
+                }
+            )
 
         return sections
 

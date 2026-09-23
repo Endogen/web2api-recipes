@@ -1,20 +1,21 @@
-name: CI
+name: Live recipe smoke tests
 
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1"
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: live-recipe-smoke
   cancel-in-progress: true
 
 jobs:
-  validate:
+  smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -28,5 +29,5 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --project web2api-core --extra dev --frozen
-      - run: uv run --project web2api-core ruff check recipes tests
-      - run: uv run --project web2api-core pytest -q
+      - run: uv run --project web2api-core playwright install --with-deps chromium
+      - run: uv run --project web2api-core pytest -m e2e -v --timeout=120
