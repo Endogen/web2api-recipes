@@ -71,4 +71,6 @@ def test_web_reader(client: TestClient) -> None:
     response = _get_response(client, "/web-reader/read", q="https://example.com")
 
     assert len(response.items) == 1
-    assert "Example Domain" in str(response.items[0].fields.get("text"))
+    # example.com dropped its <h1>; the heading now only exists as <title>.
+    assert response.items[0].title == "Example Domain"
+    assert "documentation examples" in str(response.items[0].fields.get("text"))
