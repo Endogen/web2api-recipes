@@ -52,14 +52,6 @@ def test_nvidia_model_catalog_contains_default(client: TestClient) -> None:
     assert "nvidia/nemotron-3-super-120b-a12b" in model_ids
 
 
-def test_hackernews_read(client: TestClient) -> None:
-    response = _get_response(client, "/hackernews/read")
-
-    assert response.items
-    assert response.items[0].title
-    assert response.items[0].url
-
-
 def test_wikipedia_search(client: TestClient) -> None:
     response = _get_response(client, "/wikipedia/search", q="graph theory", count=3)
 

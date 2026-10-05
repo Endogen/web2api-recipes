@@ -53,9 +53,10 @@ uv run --project ../web2api pytest -q
 
 The deterministic suite validates every recipe and plugin contract and exercises
 the custom scraper helpers without external calls. A separate scheduled/manual
-workflow runs representative live smoke tests for NVIDIA, Hacker News,
-Wikipedia, and Web Reader; provider-specific recipes needing credentials or
-operator-owned endpoints remain deterministic-only.
+workflow runs representative live smoke tests for NVIDIA, Wikipedia, and Web
+Reader; provider-specific recipes needing credentials or operator-owned
+endpoints remain deterministic-only. Hacker News is excluded because its front
+page consistently times out on GitHub-hosted runners.
 
 ## Adding or updating a recipe
 
